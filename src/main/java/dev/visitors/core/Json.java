@@ -84,8 +84,20 @@ public final class Json {
             }
             return b.toString();
         }
+        // Unquoted scalars: numbers, and also true, false and null.
+        //
+        // The first version accepted only numeric characters, so every JSON
+        // BOOLEAN read back as null. That is not a cosmetic gap: the manifest's
+        // own precheck rule is body.eq:running=false against an endpoint that
+        // answers "running":false, so the rule could never match and the check
+        // it guards would have failed every time, for a reason nothing would
+        // have explained.
         int end = i;
         while (end < json.length() && "-+.0123456789eE".indexOf(json.charAt(end)) >= 0) end++;
-        return end > i ? json.substring(i, end) : null;
+        if (end > i) return json.substring(i, end);
+        for (String literal : new String[]{"true", "false", "null"}) {
+            if (json.startsWith(literal, i)) return literal;
+        }
+        return null;
     }
 }

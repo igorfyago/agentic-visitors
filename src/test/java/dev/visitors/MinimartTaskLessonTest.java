@@ -52,11 +52,35 @@ class MinimartTaskLessonTest {
     @BeforeAll
     static void boot() throws Exception {
         Db.bootstrap();
-        // the manifest points at 8081; a locally running instance may be
-        // anywhere, so the address is the one thing the test may override
-        base = System.getenv().getOrDefault("MINIMART_URL", "http://localhost:8181");
+        // THE DEFAULT MUST BE THE MANIFEST'S OWN ADDRESS.
+        //
+        // The first version defaulted to a port that had been used to run a
+        // local instance during development, and nothing else in either
+        // repository listens there. The consequence was not a red test: the
+        // reachability check swallowed the ConnectException, the assumption
+        // aborted the container, and surefire reported "Tests run: 0, BUILD
+        // SUCCESS". Every claim in this class, which is the only class that
+        // touches a real platform at all, was silently unproven. The Executor
+        // could have been deleted entirely and the build would have stayed
+        // green.
+        //
+        // A skip that reports nothing is worse than a failure, so the default
+        // now comes from the shipped manifest and a lesson asserts that.
+        base = System.getenv().getOrDefault("MINIMART_URL", shippedBaseUrl());
         m = Manifest.of(manifestText(base));
-        Assumptions.assumeTrue(reachable(), "minimart is not running at " + base + ", skipping");
+        available = reachable();
+        Assumptions.assumeTrue(available,
+                "minimart is not running at " + base + ", skipping the only real-platform lessons");
+    }
+
+    static boolean available;
+
+    /** Whatever the shipped manifest says, so the test and the thing it tests
+     *  cannot drift apart without somebody noticing. */
+    static String shippedBaseUrl() throws Exception {
+        try (var in = Manifest.class.getResourceAsStream("/platforms/minimart.json")) {
+            return Manifest.of(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).baseUrl();
+        }
     }
 
     @BeforeEach
