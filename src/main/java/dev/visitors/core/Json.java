@@ -37,6 +37,34 @@ public final class Json {
         return b.append('}').toString();
     }
 
+    /**
+     * Every value for a key, in document order.
+     *
+     * str() returns only the FIRST match in the whole document, which is fine
+     * for a flat object and useless for an array of them. A catalogue endpoint
+     * answering [{"id":"a"},{"id":"b"}] would yield only "a", and a visitor
+     * whose known-id set silently holds one entry rejects every legitimate
+     * choice but one, with nothing to indicate why.
+     *
+     * Still a scanner, not a parser. It cannot tell a nested object's "id" from
+     * a top-level one, and for the flat arrays these APIs return that is
+     * sufficient. Stated here so the limit is a known cost rather than a
+     * surprise later.
+     */
+    public static java.util.List<String> each(String json, String key) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (json == null) return out;
+        String needle = "\"" + key + "\"";
+        int from = 0;
+        while (true) {
+            int i = json.indexOf(needle, from);
+            if (i < 0) return out;
+            String v = str(json.substring(i), key);
+            if (v != null) out.add(v);
+            from = i + needle.length();
+        }
+    }
+
     public static String str(String json, String key) {
         String needle = "\"" + key + "\"";
         int i = json.indexOf(needle);

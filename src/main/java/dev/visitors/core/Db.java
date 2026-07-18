@@ -26,15 +26,45 @@ import java.sql.Statement;
  */
 public final class Db {
 
+    // Declared FIRST on purpose. A static field initialised after the fields
+    // that read it is null when they run, and here that would not throw: every
+    // lookup would quietly fall through to the neutral default and the whole
+    // thing would connect to the wrong database while looking fine.
+    private static final java.util.Properties LOCAL = loadLocal();
+
+    private static java.util.Properties loadLocal() {
+        java.util.Properties p = new java.util.Properties();
+        try (java.io.InputStream in = Db.class.getResourceAsStream("/db.properties")) {
+            if (in != null) p.load(in);
+        } catch (java.io.IOException ignored) {
+            // absent is the normal case in a deployed environment, where every
+            // value arrives from the environment instead
+        }
+        return p;
+    }
+
+    // CREDENTIALS AND ADDRESSES DO NOT BELONG IN JAVA.
+    //
+    // The seam test scans every source file in this package for the name of any
+    // platform, and it found this class, because the connection defaults had
+    // the neighbouring service's name in them. It was right to. Even though a
+    // shared database SERVER is deployment config rather than platform
+    // knowledge, a core that has to be edited when a neighbour is renamed is
+    // not as independent as it claims.
+    //
+    // Environment first, then a local development properties file, then a
+    // neutral default. "postgres" is the admin database because every Postgres
+    // server has one, which is a better assumption than the name of whichever
+    // service happened to be installed first.
     private static final String ADMIN_URL =
-            env("VISITORS_ADMIN_URL", "jdbc:postgresql://localhost:5436/minimart");
+            conf("VISITORS_ADMIN_URL", "admin.url", "jdbc:postgresql://localhost:5436/postgres");
     public static final String URL =
-            env("VISITORS_DB_URL", "jdbc:postgresql://localhost:5436/agentic_visitors");
-    public static final String USER = env("VISITORS_DB_USER", "minimart");
-    public static final String PASSWORD = env("VISITORS_DB_PASSWORD", "minimart");
+            conf("VISITORS_DB_URL", "db.url", "jdbc:postgresql://localhost:5436/agentic_visitors");
+    public static final String USER = conf("VISITORS_DB_USER", "db.user", "postgres");
+    public static final String PASSWORD = conf("VISITORS_DB_PASSWORD", "db.password", "postgres");
 
     private static final Pool POOL =
-            new Pool(URL, USER, PASSWORD, Integer.parseInt(env("VISITORS_POOL", "8")));
+            new Pool(URL, USER, PASSWORD, Integer.parseInt(conf("VISITORS_POOL", "db.pool", "8")));
 
     private Db() {}
 
@@ -58,8 +88,10 @@ public final class Db {
                 .load().migrate();
     }
 
-    private static String env(String k, String fallback) {
-        String v = System.getenv(k);
+    private static String conf(String envKey, String fileKey, String fallback) {
+        String v = System.getenv(envKey);
+        if (v != null && !v.isBlank()) return v;
+        v = LOCAL.getProperty(fileKey);
         return v == null || v.isBlank() ? fallback : v;
     }
 }

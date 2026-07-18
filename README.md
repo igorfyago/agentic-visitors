@@ -95,25 +95,69 @@ afterwards, because the vendor has already been paid; and an estimate that prove
 overage rather than refused**, because a ledger that declines to write down a real cost makes real spending look
 free, which is the one direction in which nobody notices.
 
+## Slice 2 · the seam, and one real task (done, 16/16 lessons green)
+
+A platform is a FILE. `src/main/resources/platforms/minimart.json` holds every fact about minimart: its
+endpoints, its closed intent alphabet, which params the model may choose and which the runtime owns, what
+counts as success, and the identity range its visitors occupy. No Java file in this repository contains any of
+it, and a lesson proves that by reading the source.
+
+**The claim, and how it is falsified.** "Adding a platform is a manifest file and zero core changes" is easy to
+say and easy to fake. The usual fake is that the manifest names the endpoints while the core still knows
+success means 200. So one lesson boots a **lending library** with deliberately incompatible conventions, 201
+for a created loan, errors under `problem` rather than `error`, and a 403 that genuinely means refused, and
+drives it with nothing but a manifest written inside the test. If any convention had leaked, a created loan
+would classify as an error and it fails.
+
+The second lesson catches what the first cannot: a convenience constant in the core that happens to agree with
+the manifest, and only disagrees in production. It scans every source file under `dev/visitors` for platform
+vocabulary, with no carve-out. **It found one immediately**, in the database configuration, which had a
+neighbouring service's name in its connection defaults. Credentials and addresses now come from the
+environment, and a local properties file, and neutral defaults.
+
+**The model proposes, it does not act.** Output is parsed into the alphabet the manifest declares, every
+parameter is checked against a declared domain, and only then does a value exist that could be executed:
+`Intent` is constructible only by the grammar, so an unvalidated intent has no representation in the type
+system. The rejection reasons are a taxonomy rather than one INVALID bucket, because they call for opposite
+fixes and one number would hide which is needed.
+
+- *a model that invents a product* → `PARAM_UNKNOWN_REF`, and no request is ever sent. A visitor may only name
+  ids it has actually SEEN in a response, which is where "it sees HTTP responses and nothing else" stops being
+  a principle and becomes a gate.
+- *a model that sets `business_at` or its own `customer`* → `PARAM_EXTRA`. One could move business time, the
+  other could act as somebody else, and both would be invisible in the results.
+- *`interval_days=thirty` versus `interval_days=3650`* → `PARAM_TYPE` and `PARAM_RANGE`. One is a model that
+  cannot format, the other is a model that cannot judge, and the fixes have nothing in common.
+- *a model that narrates and then acts* → accepted. Rejecting it would report an invalid rate that is really a
+  measure of the parser's strictness.
+
+**What is written down, and when.** The intention is committed BEFORE the socket opens, and a lesson proves it
+by reading the row from a separate connection while the request is still in flight. The obvious implementation,
+send then record, passes every other test and leaves a crash-shaped hole: an effect out in the world that this
+system has no record of causing.
+
+A lost answer is **PENDING**, not ERROR. A read timeout means the request may well have been received, applied
+and committed while the response was lost coming back, and recording that as a failure asserts knowledge nobody
+has. The lesson has the platform genuinely apply the request and simply never answer in time.
+
+**And it does the task, against the real thing.** One lesson drives a running minimart over a socket: browse,
+subscribe to something it learned from the response, ask whether it is really subscribed, cancel, and then
+grade the result by ASKING THE PLATFORM. A visitor that issues a cancel and a platform that ignores it look
+identical from the client side, and only one of them is success. It skips rather than fails when minimart is
+not running, because a red suite for want of a neighbouring service teaches people to ignore red suites.
+
+**A bug that only appeared the second time the suite was ever run.** Identity was derived from the visitor
+number alone, so visitor 7 was the same customer in every run, and run two opened by finding run one's
+cancelled subscription still sitting there. A run that inherits its own past is not measuring what it thinks it
+is. Identity now carries the run as well, and a lesson runs the experiment twice on purpose, because anything
+that only shows up on a second run deserves a test that does one.
+
 ### Next
 
-- **Slice 2** · one capability manifest for minimart, the intent grammar, and one task (*subscribe, then cancel
-  before renewal*) run LIVE once and replayed forever after. The seam test that matters: adding a platform is a
-  manifest file and zero changes to the core.
-- **Slice 3** · one visitor identity that banks at minibank and shops at minimart, and the reconciliation audit
-  across two ledgers that share no database.
+- **Slice 3** · one visitor identity that banks at minibank and shops at minimart, plus the reconciliation
+  audit across two ledgers that share no database.
+- **The task loop and the model in it.** Slice 2 executes intents; the tick loop, the seeded policy and the
+  prompt renderer are what turn that into a run, and the renderer's determinism is what the cassette hit rate
+  rests on.
 - **An A/A run, published.** The identical arm twice, with the spread in outcomes shown, and the rule that no
   effect smaller than that spread gets reported.
-
-## Deliberate duplication
-
-`Ledger`, `Pool` and `Json` are **copied** from minimart, not depended on. That is what service-per-domain costs.
-A shared internal jar across four services is how a distributed monolith is born, because every schema change
-becomes a four-repository coordinated release. Worth publishing as an artifact once the primitive has genuinely
-stopped changing, and not before.
-
-## Running it
-
-```bash
-mvn -q test          # SEEDED and fake models only, spends nothing
-```
